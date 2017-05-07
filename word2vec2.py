@@ -207,7 +207,8 @@ with graph.as_default():
         # Construct the variables for the NCE loss
         nce_weights = tf.Variable(
             tf.truncated_normal([vocabulary_size, embedding_size],
-                                stddev=1.0 / math.sqrt(embedding_size)))
+                                stddev=1.0 / math.sqrt(embedding_size),
+                                seed=1234))
         nce_biases = tf.Variable(tf.zeros([vocabulary_size]))
 
     # Compute the average NCE loss for the batch.
@@ -236,7 +237,7 @@ with graph.as_default():
     init = tf.initialize_all_variables()
 
 # Step 5: Begin training.
-num_steps = 0
+num_steps = 200000
 
 with tf.Session(graph=graph) as session:
     # We must initialize all variables before we use them.
