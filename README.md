@@ -10,4 +10,4 @@ With word embedding vocab_size 600K and dimension 300 trained on 300K corpus.
 | CNN | WV_skipgram | 64 | 2,3,4,5,6 | 0 | 0.5 | 640 | 0.759 | 
 | CNN | WV_skipgram | 64 | 3,4,5 | 0 | 1 | 384 | 0.761 |
 | CNN | WV_skipgram | 1024 | 3,4,5 | 0 | 0.5 | 384 | 0.76 |
-| CNN | WV_skipgram | 1024 | 2,3,4,5,6 | 0 | 0.5 | 640 | ?? |
+| CNN | WV_skipgram | 1024 | 2,3,4,5,6 | 0 | 0.5 | 640 | 0.762 |
