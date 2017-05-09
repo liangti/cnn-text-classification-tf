@@ -1,13 +1,12 @@
-#! /usr/bin/env python
-
 import tensorflow as tf
 import numpy as np
 import os
 import time
 import datetime
-import data_helpers
-from text_cnn import TextCNN
-from tensorflow.contrib import learn
+import data_helper
+from my_cnn import TextCNN
+import shelve
+
 
 # Parameters
 # ==================================================
@@ -47,17 +46,28 @@ print("")
 
 # Load data
 print("Loading data...")
-x_text, y = data_helpers.load_data_and_labels(FLAGS.positive_data_file, FLAGS.negative_data_file)
 
+l2i=dict()
+l2i['positive']=0
+l2i['neutral']=1
+l2i['negative']=2
+wvec=shelve.open('word2vec.db',writeback=False)
+x_text=wvec['input_x']
+y=wvec['input_y']
 # Build vocabulary
-max_document_length = max([len(x.split(" ")) for x in x_text])
-vocab_processor = learn.preprocessing.VocabularyProcessor(max_document_length)
-x = np.array(list(vocab_processor.fit_transform(x_text)))
+max_document_length = max([len(x) for x in x_text])
+print max_document_length,'max_document'
+
+x = np.array(x_text)
+y = np.array(y)
+print x.shape
+
 
 # Randomly shuffle data
 np.random.seed(10)
 shuffle_indices = np.random.permutation(np.arange(len(y)))
 x_shuffled = x[shuffle_indices]
+# print shuffle_indices
 y_shuffled = y[shuffle_indices]
 
 # Split train/test set
@@ -65,9 +75,8 @@ y_shuffled = y[shuffle_indices]
 dev_sample_index = -1 * int(FLAGS.dev_sample_percentage * float(len(y)))
 x_train, x_dev = x_shuffled[:dev_sample_index], x_shuffled[dev_sample_index:]
 y_train, y_dev = y_shuffled[:dev_sample_index], y_shuffled[dev_sample_index:]
-print("Vocabulary Size: {:d}".format(len(vocab_processor.vocabulary_)))
 print("Train/Dev split: {:d}/{:d}".format(len(y_train), len(y_dev)))
-
+print("Number of Class: {:d}".format(y_train.shape[1]))
 
 # Training
 # ==================================================
@@ -78,13 +87,15 @@ with tf.Graph().as_default():
       log_device_placement=FLAGS.log_device_placement)
     sess = tf.Session(config=session_conf)
     with sess.as_default():
+
         cnn = TextCNN(
             sequence_length=x_train.shape[1],
             num_classes=y_train.shape[1],
-            vocab_size=len(vocab_processor.vocabulary_),
-            embedding_size=FLAGS.embedding_dim,
+            vocab_size=10,
+            embedding_size=300,
             filter_sizes=list(map(int, FLAGS.filter_sizes.split(","))),
             num_filters=FLAGS.num_filters,
+            word2vec=wvec['wv'],
             l2_reg_lambda=FLAGS.l2_reg_lambda)
 
         # Define Training procedure
@@ -122,16 +133,6 @@ with tf.Graph().as_default():
         dev_summary_dir = os.path.join(out_dir, "summaries", "dev")
         dev_summary_writer = tf.summary.FileWriter(dev_summary_dir, sess.graph)
 
-        # Checkpoint directory. Tensorflow assumes this directory already exists so we need to create it
-        checkpoint_dir = os.path.abspath(os.path.join(out_dir, "checkpoints"))
-        checkpoint_prefix = os.path.join(checkpoint_dir, "model")
-        if not os.path.exists(checkpoint_dir):
-            os.makedirs(checkpoint_dir)
-        saver = tf.train.Saver(tf.global_variables(), max_to_keep=FLAGS.num_checkpoints)
-
-        # Write vocabulary
-        vocab_processor.save(os.path.join(out_dir, "vocab"))
-
         # Initialize all variables
         sess.run(tf.global_variables_initializer())
 
@@ -142,7 +143,7 @@ with tf.Graph().as_default():
             feed_dict = {
               cnn.input_x: x_batch,
               cnn.input_y: y_batch,
-              cnn.dropout_keep_prob: FLAGS.dropout_keep_prob
+              cnn.dropout_keep_prob: 1#FLAGS.dropout_keep_prob
             }
             _, step, summaries, loss, accuracy = sess.run(
                 [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy],
@@ -158,7 +159,7 @@ with tf.Graph().as_default():
             feed_dict = {
               cnn.input_x: x_batch,
               cnn.input_y: y_batch,
-              cnn.dropout_keep_prob: 1.0
+              cnn.dropout_keep_prob: 1
             }
             step, summaries, loss, accuracy = sess.run(
                 [global_step, dev_summary_op, cnn.loss, cnn.accuracy],
@@ -169,7 +170,7 @@ with tf.Graph().as_default():
                 writer.add_summary(summaries, step)
 
         # Generate batches
-        batches = data_helpers.batch_iter(
+        batches = data_helper.batch_iter(
             list(zip(x_train, y_train)), FLAGS.batch_size, FLAGS.num_epochs)
         # Training loop. For each batch...
         for batch in batches:
@@ -180,6 +181,3 @@ with tf.Graph().as_default():
                 print("\nEvaluation:")
                 dev_step(x_dev, y_dev, writer=dev_summary_writer)
                 print("")
-            if current_step % FLAGS.checkpoint_every == 0:
-                path = saver.save(sess, checkpoint_prefix, global_step=current_step)
-                print("Saved model checkpoint to {}\n".format(path))
