@@ -1,4 +1,4 @@
-**[This codebase is forked and modified for the Information Extraction final project)**
+**[This codebase is forked and modified for the Information Extraction final project]**
 
 See the write up for details.
 
